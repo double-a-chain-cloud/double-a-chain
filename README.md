@@ -1,3 +1,3 @@
-# Double A Chain Node
+## Double-A Chain
 
-主链代码
+Official Golang implementation of the Double-A Chain.
