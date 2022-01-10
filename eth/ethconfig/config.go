@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/congress"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -211,6 +212,8 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
 		return clique.New(chainConfig.Clique, db)
+	} else if chainConfig.Congress != nil {
+		return congress.New(chainConfig, db)
 	}
 	// Otherwise assume proof-of-work
 	switch config.PowMode {

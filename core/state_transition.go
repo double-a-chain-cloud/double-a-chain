@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -336,7 +337,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if london {
 		effectiveTip = cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.evm.Context.BaseFee))
 	}
-	st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
+	if st.evm.ChainConfig().Congress != nil {
+		st.state.AddBalance(consensus.FeeRecorder, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
+	} else {
+		st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
+	}
 
 	return &ExecutionResult{
 		UsedGas:    st.gasUsed(),
