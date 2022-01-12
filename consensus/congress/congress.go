@@ -66,6 +66,9 @@ var (
 
 	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
+
+	ether          = big.NewInt(1e+18)
+	IncreaseAmount = new(big.Int).Mul(big.NewInt(600_000_000), ether) // increase amount to receiver between increase period
 )
 
 // System contract address.
@@ -589,6 +592,10 @@ func (c *Congress) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 		}
 	}
 
+	if header.Number.Uint64()%c.config.IncreasePeriod == 0 {
+		state.AddBalance(c.config.ReceiverAddr, IncreaseAmount)
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -625,6 +632,10 @@ func (c *Congress) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 		if _, err := c.doSomethingAtEpoch(chain, header, state); err != nil {
 			panic(err)
 		}
+	}
+
+	if header.Number.Uint64()%c.config.IncreasePeriod == 0 {
+		state.AddBalance(c.config.ReceiverAddr, IncreaseAmount)
 	}
 
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
