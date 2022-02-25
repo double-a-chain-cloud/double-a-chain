@@ -380,10 +380,8 @@ func (c *CliqueConfig) String() string {
 
 // CongressConfig is the consensus engine configs for proof-of-stake-authority based sealing.
 type CongressConfig struct {
-	Period         uint64         `json:"period"`         // Number of seconds between blocks to enforce
-	Epoch          uint64         `json:"epoch"`          // Epoch length to reset votes and checkpoint
-	IncreasePeriod uint64         `json:"increasePeriod"` // Number of blocks to increase coins
-	ReceiverAddr   common.Address `json:"receiverAddr"`   // Address to receive coins
+	Period uint64 `json:"period"` // Number of seconds between blocks to enforce
+	Epoch  uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
 }
 
 // String implements the stringer interface, returning the consensus engine details.
