@@ -21,17 +21,22 @@ import "github.com/ethereum/go-ethereum/common"
 // MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
 // the main Ethereum network.
 var MainnetBootnodes = []string{
-	// Ethereum Foundation Go Bootnodes
-	"enode://7bed18c87054f807bc9096501bc78f737363f357af831791bab07c4fa6c5a1a67cdcf0a097dc2cc918262ef04fb1c05c26026df5c11a6a56666f9b1fb4072210@18.179.9.229:32668",
-	"enode://d67251dd3b050e555679a8abdc427a4c78a9bae174f2fd3b9163c364d27b6a69688ee067cd3214e8ceb71e6e602fd812797b085ae37ed3bf93b78e2b77ae3306@54.199.88.133:32668",
-	"enode://f88bb1f5d0e42cf75ec879212b7c8477d605315d5296fba02bc4600eccf73c64427de46567a320d00985d5bc612168817ba6dff169bd6a4774e112e6db0ff6a2@18.183.164.10:32668",
+	"enode://527a7280361271ab4ff5ce0fd36bfc15800a0f629b8f23fc9436905b1efa5d9976286d8a038d304df409febd42d56f4ca63d49f0054f2659469f69b5edead857@3.137.172.33:33101",
+	"enode://9cf8c54550466ef4a30eae37559397e44a454256f09231170a8a253c62b4d83c6aa05ee6adf75554c1011b70f18a669aaa49847816c033956204fe72442a0336@3.16.78.14:33104",
+	"enode://ba113e8ec9cf6c1dd399a0c5baf08570dd05f6e7f201e647bc40e6ed83e7e43b1d39cc2e5b02f20866e334dcfc6eba5518851e626bcac85d9ff89dd80c6a5776@3.144.106.111:33107",
+	"enode://7d12191a73d1b56f7102a7497683d2dc67b4b272d4609fe7d8bfb2b3b2f402a02952dd97834c9457f65a7e3abae2b5b38982c1bb4feef3587cae2a4d4395077e@3.14.129.214:33111",
 }
 
-// TestnetBootnodes are the enode URLs of the P2P bootstrap nodes running on the
+// TestnetBootnodes are the enode URLs of the P2P bootstrap nodes running on the testnet.
 var TestnetBootnodes = []string{
-	"enode://924543a43d18bc5759a8bdcd17fa9c7c35df63968e9333640b80b58dab94b17a012371c9d46bed10ce7508a607cac76828ca04685893958eee44ade83b856dc2@47.242.237.63:32668",
-	"enode://ebad898d980b520ef6adb54ffb6a68117686e7332f1ea01f7551b7a296a34dd945445a078d7cad019d864c5ef0e0b7f2b5777d94f93adf7dc59f798af72609ac@47.242.235.121:32668",
+	"enode://10638ced559d8f4fa7e569097c312b930ea95d7be6d99d74a7ddfce7c141ae3c7d55d8485581d4260dedf96325e4ac89a904ff9928996c60fb0270c309233f03@3.144.195.4:33601",
+	"enode://22f76f4f33373714cf6cb699fd1fcb1fe62973cf135479f887266ca704fc5b66525efa854a89bd49916ca010bfb363432032b465d859bce9760cbb8d9375bc5f@3.144.195.4:33602",
+	"enode://c7aba15dfcf7d5de2939f802b400ec3ea5763d642dc167af3d7df5771e1a92850c2cac533ba06f66344abf56572ef8bb04403a110d23a3c4c14afd5008d2bb3f@3.144.195.4:33603",
 }
+
+var V5Bootnodes = []string{}
+
+const dnsPrefix = "enrtree://AKA3AM6LPBYEUDMVNU3BSVQJ5AD45Y7YPOHJLEF6W26QOE4VTUDPE@"
 
 // KnownDNSNetwork returns the address of a public DNS-based node list for the given
 // genesis hash and protocol. See https://github.com/ethereum/discv4-dns-lists for more

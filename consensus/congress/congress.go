@@ -66,6 +66,9 @@ var (
 
 	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
+
+	ether          = big.NewInt(1e+18)
+	IncreaseAmount = new(big.Int).Mul(big.NewInt(600_000_000), ether) // increase amount to receiver between increase period
 )
 
 // System contract address.
@@ -589,6 +592,21 @@ func (c *Congress) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 		}
 	}
 
+	if header.Number.Uint64() > 1 {
+		// get receiver addr and period from contract
+		receiverAddr, err := c.getReceiverAddr(chain, header)
+		if err != nil {
+			return err
+		}
+		increasePeriod, err := c.getIncreasePeriod(chain, header)
+		if err != nil {
+			return err
+		}
+		if header.Number.Uint64()%increasePeriod.Uint64() == 0 {
+			state.AddBalance(receiverAddr, IncreaseAmount)
+		}
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -627,6 +645,21 @@ func (c *Congress) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 		}
 	}
 
+	if header.Number.Uint64() > 1 {
+		// get receiver addr and period from contract
+		receiverAddr, err := c.getReceiverAddr(chain, header)
+		if err != nil {
+			panic(err)
+		}
+		increasePeriod, err := c.getIncreasePeriod(chain, header)
+		if err != nil {
+			panic(err)
+		}
+		if header.Number.Uint64()%increasePeriod.Uint64() == 0 {
+			state.AddBalance(receiverAddr, IncreaseAmount)
+		}
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -636,7 +669,7 @@ func (c *Congress) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 }
 
 func (c *Congress) trySendBlockReward(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
-	fee := state.GetBalance(consensus.FeeRecoder)
+	fee := state.GetBalance(consensus.FeeRecorder)
 	if fee.Cmp(common.Big0) <= 0 {
 		return nil
 	}
@@ -644,7 +677,7 @@ func (c *Congress) trySendBlockReward(chain consensus.ChainHeaderReader, header 
 	// Miner will send tx to deposit block fees to contract, add to his balance first.
 	state.AddBalance(header.Coinbase, fee)
 	// reset fee
-	state.SetBalance(consensus.FeeRecoder, common.Big0)
+	state.SetBalance(consensus.FeeRecorder, common.Big0)
 
 	method := "distributeBlockReward"
 	data, err := c.abi[validatorsContractName].Pack(method)
@@ -654,7 +687,7 @@ func (c *Congress) trySendBlockReward(chain consensus.ChainHeaderReader, header 
 	}
 
 	nonce := state.GetNonce(header.Coinbase)
-	msg := types.NewMessage(header.Coinbase, &validatorsContractAddr, nonce, fee, math.MaxUint64, new(big.Int), data, true)
+	msg := types.NewMessage(header.Coinbase, &validatorsContractAddr, nonce, fee, math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, false)
 
 	if _, err := executeMsg(msg, state, header, newChainContext(chain, c), c.chainConfig); err != nil {
 		return err
@@ -737,7 +770,7 @@ func (c *Congress) initializeSystemContracts(chain consensus.ChainHeaderReader, 
 		}
 
 		nonce := state.GetNonce(header.Coinbase)
-		msg := types.NewMessage(header.Coinbase, &contract.addr, nonce, new(big.Int), math.MaxUint64, new(big.Int), data, true)
+		msg := types.NewMessage(header.Coinbase, &contract.addr, nonce, new(big.Int), math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, false)
 
 		if _, err := executeMsg(msg, state, header, newChainContext(chain, c), c.chainConfig); err != nil {
 			return err
@@ -745,6 +778,86 @@ func (c *Congress) initializeSystemContracts(chain consensus.ChainHeaderReader, 
 	}
 
 	return nil
+}
+
+// get receiver addr
+func (c *Congress) getReceiverAddr(chain consensus.ChainHeaderReader, header *types.Header) (common.Address, error) {
+	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+	if parent == nil {
+		return common.Address{}, consensus.ErrUnknownAncestor
+	}
+	statedb, err := c.stateFn(parent.Root)
+	if err != nil {
+		return common.Address{}, err
+	}
+	method := "receiverAddr"
+	data, err := c.abi[proposalContractName].Pack(method)
+	if err != nil {
+		log.Error("Can't pack data for receiverAddr", "error", err)
+		return common.Address{}, err
+	}
+
+	msg := types.NewMessage(header.Coinbase, &proposalAddr, 0, new(big.Int), math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, false)
+
+	// use parent
+	result, err := executeMsg(msg, statedb, parent, newChainContext(chain, c), c.chainConfig)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	// unpack data
+	ret, err := c.abi[proposalContractName].Unpack(method, result)
+	if err != nil {
+		return common.Address{}, err
+	}
+	if len(ret) != 1 {
+		return common.Address{}, errors.New("Invalid params length")
+	}
+	receiver, ok := ret[0].(common.Address)
+	if !ok {
+		return common.Address{}, errors.New("Invalid validators format")
+	}
+	return receiver, nil
+}
+
+// get increase period
+func (c *Congress) getIncreasePeriod(chain consensus.ChainHeaderReader, header *types.Header) (*big.Int, error) {
+	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+	if parent == nil {
+		return nil, consensus.ErrUnknownAncestor
+	}
+	statedb, err := c.stateFn(parent.Root)
+	if err != nil {
+		return nil, err
+	}
+	method := "increasePeriod"
+	data, err := c.abi[proposalContractName].Pack(method)
+	if err != nil {
+		log.Error("Can't pack data for increasePeriod", "error", err)
+		return nil, err
+	}
+
+	msg := types.NewMessage(header.Coinbase, &proposalAddr, 0, new(big.Int), math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, false)
+
+	// use parent
+	result, err := executeMsg(msg, statedb, parent, newChainContext(chain, c), c.chainConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// unpack data
+	ret, err := c.abi[proposalContractName].Unpack(method, result)
+	if err != nil {
+		return nil, err
+	}
+	if len(ret) != 1 {
+		return nil, errors.New("Invalid params length")
+	}
+	increasePeriod, ok := ret[0].(*big.Int)
+	if !ok {
+		return nil, errors.New("Invalid increase period format")
+	}
+	return increasePeriod, nil
 }
 
 // call this at epoch block to get top validators based on the state of epoch block - 1
@@ -765,7 +878,7 @@ func (c *Congress) getTopValidators(chain consensus.ChainHeaderReader, header *t
 		return []common.Address{}, err
 	}
 
-	msg := types.NewMessage(header.Coinbase, &validatorsContractAddr, 0, new(big.Int), math.MaxUint64, new(big.Int), data, false)
+	msg := types.NewMessage(header.Coinbase, &validatorsContractAddr, 0, new(big.Int), math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, false)
 
 	// use parent
 	result, err := executeMsg(msg, statedb, parent, newChainContext(chain, c), c.chainConfig)
@@ -786,7 +899,7 @@ func (c *Congress) getTopValidators(chain consensus.ChainHeaderReader, header *t
 		return []common.Address{}, errors.New("Invalid validators format")
 	}
 	sort.Sort(validatorsAscending(validators))
-	return validators, err
+	return validators, nil
 }
 
 func (c *Congress) updateValidators(vals []common.Address, chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
@@ -800,7 +913,7 @@ func (c *Congress) updateValidators(vals []common.Address, chain consensus.Chain
 
 	// call contract
 	nonce := state.GetNonce(header.Coinbase)
-	msg := types.NewMessage(header.Coinbase, &validatorsContractAddr, nonce, new(big.Int), math.MaxUint64, new(big.Int), data, true)
+	msg := types.NewMessage(header.Coinbase, &validatorsContractAddr, nonce, new(big.Int), math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, true)
 	if _, err := executeMsg(msg, state, header, newChainContext(chain, c), c.chainConfig); err != nil {
 		log.Error("Can't update validators to contract", "err", err)
 		return err
@@ -820,7 +933,7 @@ func (c *Congress) punishValidator(val common.Address, chain consensus.ChainHead
 
 	// call contract
 	nonce := state.GetNonce(header.Coinbase)
-	msg := types.NewMessage(header.Coinbase, &punishContractAddr, nonce, new(big.Int), math.MaxUint64, new(big.Int), data, true)
+	msg := types.NewMessage(header.Coinbase, &punishContractAddr, nonce, new(big.Int), math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, false)
 	if _, err := executeMsg(msg, state, header, newChainContext(chain, c), c.chainConfig); err != nil {
 		log.Error("Can't punish validator", "err", err)
 		return err
@@ -840,7 +953,7 @@ func (c *Congress) decreaseMissedBlocksCounter(chain consensus.ChainHeaderReader
 
 	// call contract
 	nonce := state.GetNonce(header.Coinbase)
-	msg := types.NewMessage(header.Coinbase, &punishContractAddr, nonce, new(big.Int), math.MaxUint64, new(big.Int), data, true)
+	msg := types.NewMessage(header.Coinbase, &punishContractAddr, nonce, new(big.Int), math.MaxUint64, new(big.Int), new(big.Int), new(big.Int), data, types.AccessList{}, true)
 	if _, err := executeMsg(msg, state, header, newChainContext(chain, c), c.chainConfig); err != nil {
 		log.Error("Can't decrease missed blocks counter for validator", "err", err)
 		return err

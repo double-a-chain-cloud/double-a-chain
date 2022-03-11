@@ -396,24 +396,26 @@ func (lc *LightChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 	lc.wg.Add(1)
 	defer lc.wg.Done()
 
-	var events []interface{}
-	whFunc := func(header *types.Header) error {
-		status, err := lc.hc.WriteHeader(header)
-
-		switch status {
-		case core.CanonStatTy:
-			log.Debug("Inserted new header", "number", header.Number, "hash", header.Hash())
-			events = append(events, core.ChainEvent{Block: types.NewBlockWithHeader(header), Hash: header.Hash()})
-
-		case core.SideStatTy:
-			log.Debug("Inserted forked header", "number", header.Number, "hash", header.Hash())
-			events = append(events, core.ChainSideEvent{Block: types.NewBlockWithHeader(header)})
-		}
-		return err
+	status, err := lc.hc.InsertHeaderChain(chain, start)
+	if err != nil || len(chain) == 0 {
+		return 0, err
 	}
-	i, err := lc.hc.InsertHeaderChain(chain, whFunc, start)
+
+	// Create chain event for the new head block of this insertion.
+	var (
+		events     = make([]interface{}, 0, 1)
+		lastHeader = chain[len(chain)-1]
+		block      = types.NewBlockWithHeader(lastHeader)
+	)
+	switch status {
+	case core.CanonStatTy:
+		events = append(events, core.ChainEvent{Block: block, Hash: block.Hash()})
+	case core.SideStatTy:
+		events = append(events, core.ChainSideEvent{Block: block})
+	}
 	lc.postChainEvents(events)
-	return i, err
+
+	return 0, err
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The
@@ -426,12 +428,6 @@ func (lc *LightChain) CurrentHeader() *types.Header {
 // database by hash and number, caching it if found.
 func (lc *LightChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	return lc.hc.GetTd(hash, number)
-}
-
-// GetTdByHash retrieves a block's total difficulty in the canonical chain from the
-// database by hash, caching it if found.
-func (lc *LightChain) GetTdByHash(hash common.Hash) *big.Int {
-	return lc.hc.GetTdByHash(hash)
 }
 
 // GetHeaderByNumberOdr retrieves the total difficult from the database or
@@ -466,12 +462,6 @@ func (lc *LightChain) HasHeader(hash common.Hash, number uint64) bool {
 // GetCanonicalHash returns the canonical hash for a given block number
 func (bc *LightChain) GetCanonicalHash(number uint64) common.Hash {
 	return bc.hc.GetCanonicalHash(number)
-}
-
-// GetBlockHashesFromHash retrieves a number of block hashes starting at a given
-// hash, fetching towards the genesis block.
-func (lc *LightChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []common.Hash {
-	return lc.hc.GetBlockHashesFromHash(hash, max)
 }
 
 // GetAncestor retrieves the Nth ancestor of a given block. It assumes that either the given block or

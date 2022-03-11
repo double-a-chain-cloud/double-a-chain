@@ -50,8 +50,8 @@ func getInteractiveABI() map[string]abi.ABI {
 // executeMsg executes transaction sent to system contracts.
 func executeMsg(msg core.Message, state *state.StateDB, header *types.Header, chainContext core.ChainContext, chainConfig *params.ChainConfig) (ret []byte, err error) {
 	// Set gas price to zero
-	context := core.NewEVMContext(msg, header, chainContext, nil)
-	vmenv := vm.NewEVM(context, state, chainConfig, vm.Config{})
+	blockContext := core.NewEVMBlockContext(header, chainContext, nil)
+	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, state, chainConfig, vm.Config{})
 
 	ret, _, err = vmenv.Call(vm.AccountRef(msg.From()), *msg.To(), msg.Data(), msg.Gas(), msg.Value())
 
