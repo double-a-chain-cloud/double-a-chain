@@ -240,9 +240,10 @@ type TxPool struct {
 	signer      types.Signer
 	mu          sync.RWMutex
 
-	istanbul bool // Fork indicator whether we are in the istanbul stage.
-	eip2718  bool // Fork indicator whether we are using EIP-2718 type transactions.
-	eip1559  bool // Fork indicator whether we are using EIP-1559 type transactions.
+	istanbul    bool // Fork indicator whether we are in the istanbul stage.
+	eip2718     bool // Fork indicator whether we are using EIP-2718 type transactions.
+	eip1559     bool // Fork indicator whether we are using EIP-1559 type transactions.
+	blacklistV1 bool // Fork indicator whether we are using blacklist v1
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -620,6 +621,10 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	from, err := types.Sender(pool.signer, tx)
 	if err != nil {
 		return ErrInvalidSender
+	}
+	// Reject sender/receiver of a tx in blacklist
+	if pool.blacklistV1 && params.InBlacklistV1(from, *tx.To()) {
+		return ErrBlacklistAddr
 	}
 	// Drop non-local transactions under our own minimal accepted gas price or tip.
 	pendingBaseFee := pool.priced.urgent.baseFee
@@ -1305,6 +1310,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.eip2718 = pool.chainconfig.IsBerlin(next)
 	pool.eip1559 = pool.chainconfig.IsLondon(next)
+	pool.blacklistV1 = pool.chainconfig.IsBlacklistV1(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the

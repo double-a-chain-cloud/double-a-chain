@@ -43,8 +43,10 @@ The state transitioning model does all the necessary work to work out a valid ne
 3) Create a new state object if the recipient is \0*32
 4) Value transfer
 == If contract creation ==
-  4a) Attempt to run transaction data
-  4b) If valid, use result as code for the new state object
+
+	4a) Attempt to run transaction data
+	4b) If valid, use result as code for the new state object
+
 == end ==
 5) Run Script section
 6) Derive new state root
@@ -257,19 +259,26 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	}
+	// Make sure the address is not send from/to blacklist addresses
+	if st.evm.ChainConfig().IsBlacklistV1(st.evm.Context.BlockNumber) {
+		// check the msg from or to is in blacklist or not
+		if params.InBlacklistV1(st.msg.From(), *st.msg.To()) {
+			return fmt.Errorf("%w: from %v, to %v", ErrBlacklistAddr, st.msg.From(), *st.msg.To())
+		}
+	}
 	return st.buyGas()
 }
 
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
 //
-// - used gas:
-//      total gas used (including gas being refunded)
-// - returndata:
-//      the returned data from evm
-// - concrete execution error:
-//      various **EVM** error which aborts the execution,
-//      e.g. ErrOutOfGas, ErrExecutionReverted
+//   - used gas:
+//     total gas used (including gas being refunded)
+//   - returndata:
+//     the returned data from evm
+//   - concrete execution error:
+//     various **EVM** error which aborts the execution,
+//     e.g. ErrOutOfGas, ErrExecutionReverted
 //
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
@@ -280,6 +289,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 1. the nonce of the message caller is correct
 	// 2. caller has enough balance to cover transaction fee(gaslimit * gasprice)
 	// 3. the amount of gas required is available in the block
+	// a. the address from/to is not in blacklist
 	// 4. the purchased gas is enough to cover intrinsic usage
 	// 5. there is no overflow when calculating intrinsic gas
 	// 6. caller has enough balance to cover asset transfer for **topmost** call

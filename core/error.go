@@ -96,4 +96,7 @@ var (
 
 	// ErrSenderNoEOA is returned if the sender of a transaction is a contract.
 	ErrSenderNoEOA = errors.New("sender not an eoa")
+
+	// ErrBlacklistAddr is returned if the sender/receiver of a transaction is in blacklist
+	ErrBlacklistAddr = errors.New("sender or receiver of the transaction is in blacklist")
 )
